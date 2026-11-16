@@ -68,7 +68,7 @@
   // Та же логика, что в matcher.py: город совпадает, стоимость <= бюджета,
   // сортировка по близости к бюджету снизу, 3 результата.
   const data = window.COMPLEXES || [];
-  const fmt = n => Math.round(n).toLocaleString("ru-RU").replace(/ /g, " ");
+  const fmt = n => Math.round(n).toLocaleString("ru-RU").replace(/[\u00a0\u202f]/g, " ");
   const esc = s => String(s).replace(/[&<>"]/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
 
   const citySel = document.getElementById("city");

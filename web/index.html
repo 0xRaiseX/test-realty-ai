@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Подбор ЖК</title>
+<style>
+  :root {
+    --bg: #f6f5f2; --card: #ffffff; --ink: #121212; --ink2: #5a5955; --line: #e3e1dc;
+    --accent: #2a78d6; --premium: #eb6834; --bad: #b3261e;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+         font: 15px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; }
+  main { max-width: 760px; margin: 0 auto; padding: 32px 16px 48px; }
+  h1 { font-size: 26px; margin: 0 0 4px; }
+  .sub { color: var(--ink2); margin: 0 0 24px; }
+  form { display: grid; grid-template-columns: 1.2fr 1fr 0.8fr auto; gap: 12px; align-items: end;
+         background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+  label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--ink2); }
+  select, input { font: inherit; padding: 9px 10px; border: 1px solid var(--line); border-radius: 8px;
+                  background: #fff; color: var(--ink); min-width: 0; }
+  button { font: inherit; font-weight: 600; padding: 10px 18px; border: 0; border-radius: 8px;
+           background: var(--accent); color: #fff; cursor: pointer; }
+  #out { margin-top: 20px; display: grid; gap: 12px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+  .top { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; flex-wrap: wrap; }
+  .name { font-size: 18px; font-weight: 650; }
+  .badge { font-size: 12px; padding: 2px 8px; border-radius: 99px; color: #fff; background: var(--accent);
+           margin-left: 6px; vertical-align: 2px; }
+  .badge.premium { background: var(--premium); }
+  .cost { font-size: 20px; font-weight: 700; white-space: nowrap; }
+  .meta { color: var(--ink2); font-size: 14px; margin-top: 6px; }
+  .calc { margin-top: 8px; font-size: 14px; }
+  a { color: var(--accent); }
+  .msg { background: var(--card); border: 1px solid var(--line); border-left: 4px solid var(--bad);
+         border-radius: 12px; padding: 14px 16px; }
+  .note { color: var(--ink2); font-size: 13px; margin-top: 24px; }
+  @media (max-width: 620px) { form { grid-template-columns: 1fr 1fr; } button { grid-column: 1 / -1; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>Подбор ЖК под бюджет</h1>
+  <p class="sub">15 ЖК бизнес- и премиум-класса в Сочи, Москве и Петербурге. Цены застройщиков на 16.11.2026.</p>
+
+  <form id="f">
+    <label>Город
+      <select id="city"></select>
+    </label>
+    <label>Бюджет, руб.
+      <input id="budget" type="number" min="1" step="any" value="30000000" required>
+    </label>
+    <label>Площадь, м2
+      <input id="area" type="number" min="1" step="any" value="60" required>
+    </label>
+    <button type="submit">Подобрать</button>
+  </form>
+
+  <div id="out"></div>
+
+  <p class="note">Стоимость примерная: минимальная цена за м2 у застройщика, умноженная на площадь.
+  Источник цены у каждого ЖК - страница "Планировки" на Яндекс Недвижимости.</p>
+</main>
+
+<script src="data.js"></script>
+<script>
+  // Та же логика, что в matcher.py: город совпадает, стоимость <= бюджета,
+  // сортировка по близости к бюджету снизу, 3 результата.
+  const data = window.COMPLEXES || [];
+  const fmt = n => Math.round(n).toLocaleString("ru-RU").replace(/ /g, " ");
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
+
+  const citySel = document.getElementById("city");
+  [...new Set(data.map(d => d.city))].forEach(c => citySel.add(new Option(c, c)));
+
+  function pick(city, budget, area) {
+    return data.filter(d => d.city === city)
+      .map(d => ({...d, cost: Math.round(d.price_m2 * area)}))
+      .filter(d => d.cost <= budget)
+      .sort((a, b) => (budget - a.cost) - (budget - b.cost))
+      .slice(0, 3);
+  }
+
+  function render(e) {
+    if (e) e.preventDefault();
+    const city = citySel.value;
+    const budget = Number(document.getElementById("budget").value);
+    const area = Number(document.getElementById("area").value);
+    const out = document.getElementById("out");
+    if (!(budget > 0) || !(area > 0)) {
+      out.innerHTML = '<div class="msg">Бюджет и площадь должны быть больше нуля.</div>';
+      return;
+    }
+    const res = pick(city, budget, area);
+    if (!res.length) {
+      const cheap = data.filter(d => d.city === city).sort((a, b) => a.price_m2 - b.price_m2)[0];
+      out.innerHTML = `<div class="msg"><b>В этот бюджет ни один ЖК из таблицы не проходит.</b><br>
+        Самый доступный вариант в городе: ${esc(cheap.name)}, от ${fmt(cheap.price_m2)} руб./м2.
+        ${area} м2 там стоит примерно ${fmt(cheap.price_m2 * area)} руб.
+        За ваш бюджет можно рассчитывать примерно на ${Math.floor(budget / cheap.price_m2)} м2.</div>`;
+      return;
+    }
+    const head = res.length < 3 ? `<div class="msg" style="border-left-color:#eda100">Подходит только ${res.length} из 3.</div>` : "";
+    out.innerHTML = head + res.map((d, i) => `
+      <div class="card">
+        <div class="top">
+          <div class="name">${i + 1}. ${esc(d.name)}<span class="badge ${d.cls === "премиум" ? "premium" : ""}">${esc(d.cls)}</span></div>
+          <div class="cost">примерно ${fmt(d.cost)} руб.</div>
+        </div>
+        <div class="meta">${esc(d.developer)} - ${esc(d.district)} - срок сдачи: ${esc(d.deadline)}</div>
+        <div class="calc">от ${fmt(d.price_m2)} руб./м2 x ${area} м2. Остаток бюджета: ${fmt(budget - d.cost)} руб.
+          <a href="${esc(d.url)}" target="_blank" rel="noopener">источник</a></div>
+      </div>`).join("");
+  }
+
+  document.getElementById("f").addEventListener("submit", render);
+  render();
+</script>
+</body>
+</html>
